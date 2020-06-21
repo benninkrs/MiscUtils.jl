@@ -1,2 +1,2 @@
-# MiscUtilities.jl
-Miscellaneous utility functions for Julia
+# MiscUtils.jl
+Miscellaneous utility functions and types for Julia

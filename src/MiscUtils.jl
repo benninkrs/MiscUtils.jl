@@ -1,5 +1,5 @@
 # Miscellaneous conveniences/utilities for Julia
-module MiscUtilities
+module MiscUtils
 
 export Maybe, Optional, None, TTuple, Iterable
 export Imatrix
