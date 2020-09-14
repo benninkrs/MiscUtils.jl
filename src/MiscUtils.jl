@@ -2,6 +2,7 @@
 module MiscUtils
 
 export Maybe, Optional, None, TTuple, Iterable
+export findnzbits, binteger
 export Imatrix
 export unzip, allsame, allequal
 export @showargs
@@ -71,6 +72,112 @@ macro showargs(args...)
 	return :(nothing)
 end
 
+
+# Bit-twiddling
+
+"""
+	findnzbits(i::Integer) ::Tuple
+	findnzbits(Val(i)) ::Tuple
+
+Return the indices (1-based) of the non-zero bits as a tuple.
+Inverse of [`binteger`](@ref).
+
+# Example
+```
+julia> findnzbits(25)
+(1,4,5)
+
+julia> findnzbits(0)
+()
+```
+"""
+findnzbits(i::Integer) = findnzbits(Val{i})	# faster then a specialized method
+function findnzbits(::Type{Val{I}}) where {I}
+# Use a branch instead of defining findnzbits(::Val{0}).
+# The branch easily be written in a type agnostic way, whereas we would have to
+# define a distinct method for each type of 0.f
+	if iszero(I)
+		return ()
+	else
+		i = trailing_zeros(I) + 1
+		return (i, findnzbits(Val{(I >> i) << i})...)
+	end
+end
+
+"""
+	findnzbits(i::Integer, mask::Integer) ::Tuple
+	findnzbits(Val(i), Val(mask)) ::Tuple
+
+Returns the locations of the non-zero bits of `i` as indices into the non-zero bits of `mask`.
+
+# Example
+```
+julia> findnzbits(25, 58)
+(2,3)
+```
+"""
+findnzbits(I::Integer, M::Integer) = findnzbits(Val{I}, Val{M})
+@generated function findnzbits(::Type{Val{I}}, ::Type{Val{M}}) where {I,M}
+	t = findnzbits_(Val{I & M}, Val{M}, 1)
+	return :( $t )
+end
+
+function findnzbits_(::Type{Val{I}}, ::Type{Val{M}}, idx) where {I,M}
+	if iszero(I)
+		return ()
+	else
+		bit = trailing_zeros(M)
+		if iszero((I >> bit) & 1)
+			bit += 1
+			return findnzbits_(Val{I>>bit}, Val{M>>bit}, idx+1)
+		else
+			bit += 1
+			return (idx, findnzbits_(Val{I>>bit}, Val{M>>bit}, idx+1)...)
+		end
+	end
+end
+
+
+
+"""
+	binteger(bits::Tuple) ::Int
+	binteger(T::Type{<:Integer}, bits::Tuple) ::T
+
+Create an integer by specifying the indices (1-based) of its non-zero bits.
+Inverse of [`findnzbits`](@ref).
+
+# Example
+```
+julia> binteger((5,1,4))
+25
+
+julia> binteger(UInt8, ())
+0
+```
+"""
+binteger(bits::Dims) = binteger(Int, bits)
+function binteger(::Type{T}, bits::Dims) where T<:Integer
+	I = zero(T)
+	nbits = sizeof(T) << 3
+	for b in bits
+		@boundscheck (b >=0 && b <= nbits) || error("Bit index must be in {1,…,$nbits}; got $b")
+		I |= 1 << (b-1)
+	end
+	I
+end
+
+# Using @generated forces the compiler to evaluate the result and return it as a constant
+@generated function binteger(::Type{T}, ::Type{Val{bits}}) where {T, bits}
+ 	I = binteger(T, bits)
+	return :( $I )
+end
+
+# This approach infers the actual result, but only for tuples of length <= 3
+# binteger(T, bits) = binteger_(T, bits)
+# binteger_(::Type{T}, b::Dims{1}) where {T <: Integer} = oneunit(T) << (b[1]-1)
+# @inline function binteger_(::Type{T}, bits::Dims) where {T <: Integer}
+# 	(oneunit(T) << (bits[1] - 1)) | binteger_(T, Base.tail(bits))
+# end
 
 # macro set(ex, val)
 # 	@assert ex isa Expr "First argument to @set must be of the form x.a or x[i]"
