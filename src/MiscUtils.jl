@@ -91,8 +91,14 @@ julia> findnzbits(0)
 ()
 ```
 """
-findnzbits(i::Integer) = findnzbits(Val{i})	# faster then a specialized method
+findnzbits(i::Integer) = findnzbits(Val(i))	# faster then a specialized method
+
 function findnzbits(::Type{Val{I}}) where {I}
+	@warn "findnzbits(Val{...}) is deprecated. Use findnzbits(Val(...)) instead."
+	findnzbits(Val(I))
+end
+
+function findnzbits(::Val{I}) where {I}
 # Use a branch instead of defining findnzbits(::Val{0}).
 # The branch easily be written in a type agnostic way, whereas we would have to
 # define a distinct method for each type of 0.f
@@ -100,7 +106,7 @@ function findnzbits(::Type{Val{I}}) where {I}
 		return ()
 	else
 		i = trailing_zeros(I) + 1
-		return (i, findnzbits(Val{(I >> i) << i})...)
+		return (i, findnzbits(Val((I >> i) << i))...)
 	end
 end
 
@@ -116,23 +122,23 @@ julia> findnzbits(25, 58)
 (2,3)
 ```
 """
-findnzbits(I::Integer, M::Integer) = findnzbits(Val{I}, Val{M})
-@generated function findnzbits(::Type{Val{I}}, ::Type{Val{M}}) where {I,M}
-	t = findnzbits_(Val{I & M}, Val{M}, 1)
+findnzbits(I::Integer, M::Integer) = findnzbits(Val(I), Val(M))
+@generated function findnzbits(::Val{I}, ::Val{M}) where {I,M}
+	t = findnzbits_(Val(I & M), Val(M), 1)
 	return :( $t )
 end
 
-function findnzbits_(::Type{Val{I}}, ::Type{Val{M}}, idx) where {I,M}
+function findnzbits_(::Val{I}, ::Val{M}, idx) where {I,M}
 	if iszero(I)
 		return ()
 	else
 		bit = trailing_zeros(M)
 		if iszero((I >> bit) & 1)
 			bit += 1
-			return findnzbits_(Val{I>>bit}, Val{M>>bit}, idx+1)
+			return findnzbits_(Val(I>>bit), Val(M>>bit), idx+1)
 		else
 			bit += 1
-			return (idx, findnzbits_(Val{I>>bit}, Val{M>>bit}, idx+1)...)
+			return (idx, findnzbits_(Val(I>>bit), Val(M>>bit), idx+1)...)
 		end
 	end
 end
@@ -166,8 +172,13 @@ function binteger(::Type{T}, bits::Dims) where T<:Integer
 	I
 end
 
+function binteger(::Type{T}, ::Type{Val{bits}}) where {bits}
+	@warn "binteger(T, Val{bits}) is deprecated. Use binteger(T, Val(bits)) instead."
+	binteger(T, Val(bits))
+end
+
 # Using @generated forces the compiler to evaluate the result and return it as a constant
-@generated function binteger(::Type{T}, ::Type{Val{bits}}) where {T, bits}
+@generated function binteger(::Type{T}, ::Val{bits}) where {T, bits}
  	I = binteger(T, bits)
 	return :( $I )
 end
