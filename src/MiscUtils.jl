@@ -133,7 +133,7 @@ function findnzbits_(::Val{I}, ::Val{M}, idx) where {I,M}
 		return ()
 	else
 		bit = trailing_zeros(M)
-		if iszero((I >> bit) & 1)
+		if iszero((I >> bit) & true)		# true = 1 in smallest unsigned int type 
 			bit += 1
 			return findnzbits_(Val(I>>bit), Val(M>>bit), idx+1)
 		else
@@ -167,7 +167,7 @@ function binteger(::Type{T}, bits::Dims) where T<:Integer
 	nbits = sizeof(T) << 3
 	for b in bits
 		@boundscheck (b >=0 && b <= nbits) || error("Bit index must be in {1,…,$nbits}; got $b")
-		I |= 1 << (b-1)
+		I |= oneunit(T) << (b-1)
 	end
 	I
 end
