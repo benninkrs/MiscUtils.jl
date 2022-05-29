@@ -172,10 +172,6 @@ function binteger(::Type{T}, bits::Dims) where T<:Integer
 	I
 end
 
-function binteger(::Type{T}, ::Type{Val{bits}}) where {bits}
-	@warn "binteger(T, Val{bits}) is deprecated. Use binteger(T, Val(bits)) instead."
-	binteger(T, Val(bits))
-end
 
 # Using @generated forces the compiler to evaluate the result and return it as a constant
 @generated function binteger(::Type{T}, ::Val{bits}) where {T, bits}
