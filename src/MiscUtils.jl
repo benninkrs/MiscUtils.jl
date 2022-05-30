@@ -92,24 +92,33 @@ julia> findnzbits(0)
 ```
 """
 findnzbits(i::Integer) = findnzbits(Val(i))	# faster then a specialized method
-
-function findnzbits(::Type{Val{I}}) where {I}
-	@warn "findnzbits(Val{...}) is deprecated. Use findnzbits(Val(...)) instead."
-	findnzbits(Val(I))
-end
-
 function findnzbits(::Val{I}) where {I}
-# Use a branch instead of defining findnzbits(::Val{0}).
-# The branch easily be written in a type agnostic way, whereas we would have to
-# define a distinct method for each type of 0.f
-	if iszero(I)
-		return ()
-	else
-		i = trailing_zeros(I) + 1
-		return (i, findnzbits(Val((I >> i) << i))...)
-	end
+	n = count_ones(I)
+	ntuple(k -> index_kth_1(Val(I), Val(k)), Val(n)) 
 end
 
+# function findnzbits(::Val{I}) where {I}
+# # Use a branch instead of defining findnzbits(::Val{0}).
+# # The branch easily be written in a type agnostic way, whereas we would have to
+# # define a distinct method for each type of 0.
+# 	if iszero(I)
+# 		return ()
+# 	else
+# 		i = trailing_zeros(I) + 1
+# 		return (i, findnzbits(Val((I >> i) << i))...)
+# 	end
+# end
+
+
+function index_kth_1(::Val{I}, ::Val{k}) where {I} where {k}
+	i = trailing_zeros(I) + 1
+	return i + index_kth_1(Val(I >> i), Val(k-1))
+end 
+index_kth_1(::Val{I}, ::Val{0}) where {I} = 0
+
+
+
+	
 """
 	findnzbits(i::Integer, mask::Integer) ::Tuple
 	findnzbits(Val(i), Val(mask)) ::Tuple
