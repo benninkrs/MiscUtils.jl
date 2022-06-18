@@ -3,9 +3,9 @@ module MiscUtils
 
 export Maybe, Optional, None, TTuple, Iterable
 export findnzbits, binteger
-export Imatrix
+export 𝗜
 export unzip, allsame, allequal
-export @showargs
+export @showargs, @macroargs
 
 import Base: size, axes
 
@@ -17,8 +17,7 @@ const Iterable = Union{Tuple, AbstractArray, UnitRange, Base.Generator}
 const TTuple{T} = Tuple{Vararg{T}}
 
 using LinearAlgebra
-const Imatrix = LinearAlgebra.I
-
+const 𝗜 = LinearAlgebra.I
 
 size(x::AbstractArray, dims::Iterable) = map(d->size(x, d), dims)
 axes(x::AbstractArray, dims::Iterable) = map(d->axes(x, d), dims)
@@ -65,6 +64,10 @@ function allequal(it::Iterable)
 	return true
 end
 
+macro macroargs(args...)
+	args
+end
+
 macro showargs(args...)
 	for (i,arg) in enumerate(args)
 		println(i, ":  ", arg)
@@ -91,23 +94,18 @@ julia> findnzbits(0)
 ()
 ```
 """
-findnzbits(i::Integer) = findnzbits(Val(i))	# faster then a specialized method
+findnzbits(i::Integer) = findnzbits(Val(i))	# faster then a specialized method, but still slower than if i is inferred
 function findnzbits(::Val{I}) where {I}
+	# if I == 0, return ()
+	#iszero(I) && ()
+	# else ...
 	n = count_ones(I)
-	ntuple(k -> index_kth_1(Val(I), Val(k)), Val(n)) 
+	if n <= 28
+		ntuple(k -> index_kth_1(Val(I), Val(k)), Val(n)) 
+	else
+		findnzbits_(Val(I))
+	end
 end
-
-# function findnzbits(::Val{I}) where {I}
-# # Use a branch instead of defining findnzbits(::Val{0}).
-# # The branch easily be written in a type agnostic way, whereas we would have to
-# # define a distinct method for each type of 0.
-# 	if iszero(I)
-# 		return ()
-# 	else
-# 		i = trailing_zeros(I) + 1
-# 		return (i, findnzbits(Val((I >> i) << i))...)
-# 	end
-# end
 
 
 function index_kth_1(::Val{I}, ::Val{k}) where {I} where {k}
@@ -115,6 +113,27 @@ function index_kth_1(::Val{I}, ::Val{k}) where {I} where {k}
 	return i + index_kth_1(Val(I >> i), Val(k-1))
 end 
 index_kth_1(::Val{I}, ::Val{0}) where {I} = 0
+
+
+
+###### This is slower (not type inferred)
+findnzbits_(i::Integer)  = findnzbits_(Val(i))
+function findnzbits_(::Val{I}) where {I}
+# Use a branch instead of defining findnzbits(::Val{0}).
+# The branch easily be written in a type agnostic way, whereas we would have to
+# define a distinct method for each type of 0.
+	if iszero(I)
+		return ()
+	else
+		# a little slower?
+		# i = trailing_zeros(I)
+		# I_ = xor(I, typeof(I)(1)<<i)
+		# return (i+1, findnzbits_(Val(I_))...)
+		i = trailing_zeros(I) + 1
+		return (i, findnzbits_(Val((I >> i) << i))...)
+	end
+end
+
 
 
 
@@ -131,11 +150,13 @@ julia> findnzbits(25, 58)
 (2,3)
 ```
 """
-findnzbits(I::Integer, M::Integer) = findnzbits(Val(I), Val(M))
 @generated function findnzbits(::Val{I}, ::Val{M}) where {I,M}
 	t = findnzbits_(Val(I & M), Val(M), 1)
 	return :( $t )
 end
+
+
+findnzbits_(I::Integer, M::Integer) = findnzbits(Val(I), Val(M))
 
 function findnzbits_(::Val{I}, ::Val{M}, idx) where {I,M}
 	if iszero(I)
