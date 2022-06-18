@@ -150,13 +150,15 @@ julia> findnzbits(25, 58)
 (2,3)
 ```
 """
+findnzbits(I::Integer, M::Integer) = findnzbits(Val(I), Val(M))
+
 @generated function findnzbits(::Val{I}, ::Val{M}) where {I,M}
 	t = findnzbits_(Val(I & M), Val(M), 1)
 	return :( $t )
 end
 
 
-findnzbits_(I::Integer, M::Integer) = findnzbits(Val(I), Val(M))
+#findnzbits_(I::Integer, M::Integer) = findnzbits(Val(I), Val(M))
 
 function findnzbits_(::Val{I}, ::Val{M}, idx) where {I,M}
 	if iszero(I)
