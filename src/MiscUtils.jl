@@ -3,8 +3,11 @@ module MiscUtils
 
 export Maybe, Optional, None, TTuple, Iterable
 export findnzbits, binteger
-export 𝗜
+export 𝕀   	# Unicode blackboard bold I, \bbI
 export unzip, allsame, allequal
+export allbitvectors
+export logsumexp, logmultinomial
+export splitargs
 export @showargs, @macroargs
 
 import Base: size, axes
@@ -17,13 +20,17 @@ const Iterable = Union{Tuple, AbstractArray, UnitRange, Base.Generator}
 const TTuple{T} = Tuple{Vararg{T}}
 
 using LinearAlgebra
-const 𝗜 = LinearAlgebra.I
+const 𝕀 = LinearAlgebra.I
+
+
+err_not_impl(name::Symbol, args...) = error("$name is not implemented for argument types $(typeof.(args))")
+
 
 size(x::AbstractArray, dims::Iterable) = map(d->size(x, d), dims)
 axes(x::AbstractArray, dims::Iterable) = map(d->axes(x, d), dims)
 
 
-# These are possibly inefficient -- they iterate over z once for each field.
+# These are probably inefficient -- they iterate over z once for each field.
 # The alternative is to iterate once, and push! onto multiple vectors
 unzip(z) = unzip(z, eltype(z))
 unzip(z, ::Type{T} where T<:Tuple) = map(i -> getindex.(z, i), ntuple(Int, length(first(z))))
@@ -94,8 +101,8 @@ julia> findnzbits(0)
 ()
 ```
 """
-findnzbits(i::Integer) = findnzbits(Val(i))	# faster then a specialized method, but still slower than if i is inferred
-function findnzbits(::Val{I}) where {I}
+@inline findnzbits(i::Integer) = findnzbits(Val(i))	# faster then a specialized method, but still slower than if i is inferred
+@inline function findnzbits(::Val{I}) where {I}
 	# if I == 0, return ()
 	#iszero(I) && ()
 	# else ...
@@ -108,17 +115,17 @@ function findnzbits(::Val{I}) where {I}
 end
 
 
-function index_kth_1(::Val{I}, ::Val{k}) where {I} where {k}
+@inline function index_kth_1(::Val{I}, ::Val{k}) where {I} where {k}
 	i = trailing_zeros(I) + 1
 	return i + index_kth_1(Val(I >> i), Val(k-1))
 end 
-index_kth_1(::Val{I}, ::Val{0}) where {I} = 0
+@inline index_kth_1(::Val{I}, ::Val{0}) where {I} = 0
 
 
 
 ###### This is slower (not type inferred)
-findnzbits_(i::Integer)  = findnzbits_(Val(i))
-function findnzbits_(::Val{I}) where {I}
+@inline findnzbits_(i::Integer)  = findnzbits_(Val(i))
+@inline function findnzbits_(::Val{I}) where {I}
 # Use a branch instead of defining findnzbits(::Val{0}).
 # The branch easily be written in a type agnostic way, whereas we would have to
 # define a distinct method for each type of 0.
@@ -210,6 +217,99 @@ end
  	I = binteger(T, bits)
 	return :( $I )
 end
+
+
+"""
+	randbitvec(n)
+	randbitvec(n, k)
+
+Return a random BitVector of length `n`.  If `k∈{0,...,n}` is provided, the result has exactly `k` 1's.
+"""
+randbitvec(n::Integer) = rand(n) .> 0.5
+function randbitvec(n::Integer, k::Integer)
+	a = k
+	b = n - k
+	bitvec = falses(n)
+	for i = 1:length(bitvec)
+		if rand() <= a/(a+b)
+			bitvec[i] = true
+			a -= 1
+		else
+			b -= 1
+		end
+	end
+	return bitvec
+end
+
+
+"""
+	allbitvectors(n)
+
+Return an n×2^n array of all 2^n bitvectors of length n.
+"""
+function allbitvectors(n)
+	B = BitMatrix(undef, (n, 2^n))
+	for (i,bits) in enumerate(CartesianIndices(ntuple(_ -> false:true, n)))
+		B[:,i] .= Tuple(bits)
+	end
+	return B
+end
+
+
+
+"""
+	logsumexp(x::Collection)
+
+Compute log(sum(exp(x))) robustly.
+"""
+function logsumexp(x)
+	xmax = maximum(x)
+	dx = x .- xmax
+	y = xmax .+ log(sum(exp.(dx)))
+end
+
+
+
+"""
+	logbeta(a1, a2, ...)
+
+Natural logarithm of the n-ary beta function β(a1,a2,...) = Γ(a1)Γ(a2)⋯/Γ(a1+a2+⋯)
+for a1,a2,... > 0.
+"""
+logbeta() = log(0)
+logbeta(args...) = sum(loggamma.(args)) - loggamma(sum(args))
+
+
+"""
+	logmultinomial(k1, k2, ...)
+
+Computes the logarithm of (k1 + k2 + ...)! / k1! k2! ... for k1,k2,... > 0.
+"""
+logmultinomial(args...) = loggamma(sum(args)+1) - sum((map(x -> loggamma(x+1), args))) 
+
+
+"""
+	splitargs(T1::Type, T2::Type, args...)
+
+Splits an argument list into two lists based on type.  Returns `(x::Vararg{T1}, y::Vararg{T2})`
+where `x`, `y` are extracted in order from `args`.  An error results if any arguments are not
+of either specified type.
+"""
+splitargs(::Type{T1}, y::Type{T2}) where {T1,T2}= ((), ())
+splitargs(::Type{T1}, y::Type{T2}, z, args...) where {T1,T2} = error("Arguments must of type $T1 or $T2; got $(typeof(z))")
+
+function splitargs(::Type{T1}, ::Type{T2}, x::T1, args...) where {T1,T2}
+	(x_,y_) = splitargs(T1, T2, args...)
+	return ((x,x_...), y_)
+end
+
+function splitargs(::Type{T1}, ::Type{T2}, y::T2, args...) where {T1,T2}
+	(x_, y_) = splitargs(T1, T2, args...)
+	return (x_, (y, y_...))
+end
+
+
+
 
 # This approach infers the actual result, but only for tuples of length <= 3
 # binteger(T, bits) = binteger_(T, bits)
