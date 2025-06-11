@@ -8,7 +8,7 @@ export unzip, allsame, allequal
 export allbitvectors
 export logsumexp, logmultinomial
 export splitargs
-export @showargs, @macroargs
+export @showargs, @macroargs, @exportinstances
 
 import Base: size, axes
 
@@ -82,6 +82,24 @@ macro showargs(args...)
 	return :(nothing)
 end
 
+
+"""
+	@exportinstance EnumType
+	
+Export all instances of enum type `EnumType`.  (This macro must occur after `EnumType` is
+defined.)
+"""
+macro exportinstances(Enum)
+	ins = Symbol.(instances((__module__).eval(Enum)))
+	:( export $(ins...))
+end
+
+
+# from https://discourse.julialang.org/t/how-to-write-a-macro-to-export-all-instances-of-an-enum-type/73137
+# macro exportinstances(enum)
+# 	eval = GlobalRef(Core, :eval)
+# 	return :($eval($__module__, Expr(:export, map(Symbol, instances($enum))...)))
+# end
 
 # Bit-twiddling
 
