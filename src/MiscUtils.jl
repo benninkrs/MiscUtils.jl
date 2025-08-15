@@ -126,18 +126,24 @@ julia> findnzbits(0)
 	# else ...
 	n = count_ones(I)
 	if n <= 28
-		ntuple(k -> index_kth_1(Val(I), Val(k)), Val(n)) 
+		ntuple(k -> index_kth_1(I, Val(k)), Val(n)) 
 	else
 		findnzbits_(Val(I))
 	end
 end
 
 
-@inline function index_kth_1(::Val{I}, ::Val{k}) where {I} where {k}
+# @inline function index_kth_1(::Val{I}, ::Val{k}) where {I} where {k}
+# 	i = trailing_zeros(I) + 1
+# 	return i + index_kth_1(Val(I >> i), Val(k-1))
+# end 
+# @inline index_kth_1(::Val{I}, ::Val{0}) where {I} = 0
+
+@inline function index_kth_1(I, ::Val{k}) where {k}
 	i = trailing_zeros(I) + 1
-	return i + index_kth_1(Val(I >> i), Val(k-1))
+	return i + index_kth_1(I >> i, Val(k-1))
 end 
-@inline index_kth_1(::Val{I}, ::Val{0}) where {I} = 0
+@inline index_kth_1(I, ::Val{0}) = 0
 
 
 
